@@ -42,7 +42,7 @@ public class GameBuilder : IPreprocessBuildWithReport
     }
 
 
-    [MenuItem("Build/Upload to FTP")]
+    [MenuItem("FTP/Upload to FTP")]
     public static void UploadToFTP()
     {
         // 從 editor/account.json 獲取帳戶信息

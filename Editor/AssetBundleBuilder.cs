@@ -78,7 +78,6 @@ public class AssetBundleBuilder
         // update version.json and push to git
         UpdateVersionJson();
         CommitAndPushToGit();
-        UploadToFTP();
         //
     }
 
@@ -233,7 +232,34 @@ public class AssetBundleBuilder
         }
     }
 
+    [MenuItem("FTP/Upload AssetBundle to FTP")]
+    public static void UploadAssetBundleToFTP()
+    {
+        string platformName;
+        var activeProfile = BuildProfile.GetActiveBuildProfile();
 
+        if (activeProfile == null)
+        {
+            // Fallback to current active build target
+            platformName = EditorUserBuildSettings.activeBuildTarget.ToString();
+            UnityEngine.Debug.LogWarning("No active build profile found, using current build target: " + platformName);
+        }
+        else
+        {
+            platformName = activeProfile.name;
+        }
 
+        string localFolderPath = "Assets/AssetBundles/" + platformName + "/";
+        string remoteFolderPath = "AssetBundles/" + platformName + "/";
+
+        if (!Directory.Exists(localFolderPath))
+        {
+            UnityEngine.Debug.LogError($"AssetBundle folder does not exist: {localFolderPath}");
+            return;
+        }
+
+        FTP_Controller.UploadDirectory(localFolderPath, remoteFolderPath);
+        UnityEngine.Debug.Log("Asset Bundles uploaded to FTP.");
+    }
 
 }

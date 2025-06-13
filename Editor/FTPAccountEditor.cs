@@ -11,7 +11,7 @@ namespace FTP_Manager
         private string password = "";
         private string accountFilePath = "Assets/FTPaccount.json";
 
-        [MenuItem("Build/FTP Account Edit")]
+        [MenuItem("FTP/FTP Account Edit")]
         public static void ShowWindow()
         {
             GetWindow<FTPAccountEditor>("FTP Account Editor");
