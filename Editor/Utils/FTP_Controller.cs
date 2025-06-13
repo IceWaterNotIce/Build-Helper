@@ -158,12 +158,17 @@ namespace FTP_Manager
 
         private static void EnsureRemoteDirectoryExists(string directoryUrl, FTP_Account account)
         {
+            // Normalize the directory URL first
+            directoryUrl = directoryUrl.TrimEnd('/') + "/"; // Ensure trailing slash for directories
+
             if (CheckRemoteDirectoryExists(directoryUrl, account))
                 return;
 
+            // Get parent directory (one level up)
             string parentDirectory = GetParentDirectoryUri(directoryUrl);
             if (!string.IsNullOrEmpty(parentDirectory))
             {
+                // Recursively ensure parent exists
                 EnsureRemoteDirectoryExists(parentDirectory, account);
             }
 
@@ -179,13 +184,23 @@ namespace FTP_Manager
             {
                 LogInfo($"Directory already exists: {directoryUrl}");
             }
+            catch (Exception ex)
+            {
+                LogError($"Failed to create directory {directoryUrl}: {ex.Message}");
+                throw;
+            }
         }
 
         private static bool CheckRemoteDirectoryExists(string directoryUrl, FTP_Account account)
         {
+            // For directory checking, we need to ensure the path ends with /
+            directoryUrl = directoryUrl.TrimEnd('/') + "/";
+
             try
             {
                 FtpWebRequest request = CreateFtpRequest(directoryUrl, WebRequestMethods.Ftp.ListDirectory, account);
+                request.Method = WebRequestMethods.Ftp.ListDirectoryDetails; // More reliable for directory checking
+
                 using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
                 {
                     return true;
@@ -250,10 +265,14 @@ namespace FTP_Manager
             var uri = new Uri(ftpUrl);
             string path = uri.AbsolutePath.TrimEnd('/');
 
-            int lastSlash = path.LastIndexOf('/');
-            if (lastSlash <= 0) return null;
+            // Handle root case
+            if (string.IsNullOrEmpty(path) || path == "/")
+                return null;
 
-            string parentPath = path.Substring(0, lastSlash + 1);
+            int lastSlash = path.LastIndexOf('/');
+            if (lastSlash < 0) return null;
+
+            string parentPath = path.Substring(0, lastSlash);
             return new UriBuilder(uri.Scheme, uri.Host, uri.Port, parentPath).Uri.ToString();
         }
 
