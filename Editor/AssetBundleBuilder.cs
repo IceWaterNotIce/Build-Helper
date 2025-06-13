@@ -27,10 +27,26 @@ public class AssetBundleBuilder
     [MenuItem("Assets/Build AssetBundles")]
     public static void BuildAllAssetBundles()
     {
-        // create directory if not exist
-        if (!Directory.Exists("Assets/AssetBundles/" + BuildProfile.GetActiveBuildProfile().name))
+
+        // Get active build profile or use default platform
+        string platformName;
+        var activeProfile = BuildProfile.GetActiveBuildProfile();
+
+        if (activeProfile == null)
         {
-            Directory.CreateDirectory("Assets/AssetBundles/" + BuildProfile.GetActiveBuildProfile().name);
+            // Fallback to current active build target
+            platformName = EditorUserBuildSettings.activeBuildTarget.ToString();
+            UnityEngine.Debug.LogWarning("No active build profile found, using current build target: " + platformName);
+        }
+        else
+        {
+            platformName = activeProfile.name;
+        }
+
+        // create directory if not exist
+        if (!Directory.Exists("Assets/AssetBundles/" + platformName))
+        {
+            Directory.CreateDirectory("Assets/AssetBundles/" + platformName);
         }
 
         // filter current platform asset bundles
