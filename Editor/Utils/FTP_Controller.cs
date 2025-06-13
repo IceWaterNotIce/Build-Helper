@@ -72,7 +72,14 @@ namespace FTP_Manager
 
             // Ensure the directory exists on the FTP server
             string directoryUrl = ftpUrl.TrimEnd('/');
-            CreateFtpDirectory(directoryUrl, username, password);
+            try
+            {
+                CreateFtpDirectory(directoryUrl, username, password);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to ensure directory exists: {directoryUrl}. Error: {ex.Message}");
+            }
 
             try
             {
