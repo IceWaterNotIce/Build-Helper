@@ -94,8 +94,8 @@ public class AssetBundleBuilder
     }
     private static void UpdateVersionJson()
     {
-        // 從 editor/account.json 獲取帳戶信息
-        string accountFilePath = "Assets/Editor/Utils/FTPaccount.json";
+        // Update the file path to the new location
+        string accountFilePath = "Assets/FTPaccount.json";
         if (!File.Exists(accountFilePath))
         {
             UnityEngine.Debug.LogError($"FTP account file not found at {accountFilePath}. Please ensure the file exists and contains valid FTP account information.");
