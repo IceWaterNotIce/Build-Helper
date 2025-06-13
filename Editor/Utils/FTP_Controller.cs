@@ -1,33 +1,47 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
 namespace FTP_Manager
 {
     /// <summary>
-    /// FTP account information class (sealed for security)
+    /// FTP account information class
     /// </summary>
     [Serializable]
     public class FTP_Account
     {
-        public string host; // 修改為 public
-        public string username; // 修改為 public
-        public string password; // 修改為 public
+        public string host;
+        public string username;
+        public string password;
     }
 
     /// <summary>
-    /// FTP controller with enhanced security and error handling
+    /// Enhanced FTP controller with connection pooling and error handling
     /// </summary>
     public static class FTP_Controller
     {
+        // Configuration constants
         private const string DEFAULT_CONFIG_PATH = "Assets/FTPaccount.json";
         private const int TIMEOUT_MS = 30000;
         private const int BUFFER_SIZE = 81920; // 80KB buffer
+        private const int MAX_CONCURRENT_CONNECTIONS = 5; // Conservative value
+        private const int MAX_RETRY_ATTEMPTS = 3;
+        private const int RETRY_DELAY_BASE_MS = 1000;
+
+        static FTP_Controller()
+        {
+            // Configure global connection settings
+            ServicePointManager.DefaultConnectionLimit = MAX_CONCURRENT_CONNECTIONS;
+            ServicePointManager.Expect100Continue = false;
+            ServicePointManager.UseNagleAlgorithm = false;
+        }
 
         /// <summary>
-        /// Uploads a local directory to FTP server (async version available)
+        /// Uploads a local directory to FTP server
         /// </summary>
         public static void UploadDirectory(string localFolderPath, string remoteFolderPath,
                                          string host = null, string username = null, string password = null)
@@ -87,7 +101,7 @@ namespace FTP_Manager
             try
             {
                 EnsureRemoteDirectoryExists(fullRemotePath, account);
-                PerformFileUpload(filePath, uploadUrl, account);
+                PerformFileUploadWithRetry(filePath, uploadUrl, account);
                 LogInfo($"Successfully uploaded file: {fileName}");
             }
             catch (Exception ex)
@@ -97,43 +111,87 @@ namespace FTP_Manager
             }
         }
 
-        /// <summary>
-        /// Async version of file upload
-        /// </summary>
-        public static async Task UploadFileAsync(string filePath, string remotePath,
-                                               string host = null, string username = null, string password = null)
-        {
-            await Task.Run(() => UploadFile(filePath, remotePath, host, username, password));
-        }
-
         #region Core Implementation
         private static void UploadDirectoryContents(string localPath, string remotePath, FTP_Account account)
         {
-            // Upload files in parallel with thread-safe error handling
-            Parallel.ForEach(Directory.GetFiles(localPath), filePath =>
+            // Use semaphore to control concurrent connections
+            using (var semaphore = new SemaphoreSlim(MAX_CONCURRENT_CONNECTIONS))
             {
-                if (Path.GetExtension(filePath) != ".meta")
-                {
-                    try
-                    {
-                        string fileName = Path.GetFileName(filePath);
-                        string fileRemotePath = CombineFtpPaths(remotePath, fileName);
-                        PerformFileUpload(filePath, fileRemotePath, account);
-                    }
-                    catch (Exception ex)
-                    {
-                        LogError($"Failed to upload file {Path.GetFileName(filePath)}: {ex.Message}");
-                    }
-                }
-            });
+                var uploadTasks = new List<Task>();
 
-            // Process subdirectories sequentially
-            foreach (string subDir in Directory.GetDirectories(localPath))
-            {
-                string newRemotePath = CombineFtpPaths(remotePath, Path.GetFileName(subDir));
-                EnsureRemoteDirectoryExists(newRemotePath, account);
-                UploadDirectoryContents(subDir, newRemotePath, account);
+                // Process files with controlled parallelism
+                foreach (string filePath in Directory.GetFiles(localPath))
+                {
+                    if (Path.GetExtension(filePath) == ".meta") continue;
+
+                    semaphore.Wait();
+                    uploadTasks.Add(Task.Run(() =>
+                    {
+                        try
+                        {
+                            string remoteFilePath = $"{remotePath.TrimEnd('/')}/{Path.GetFileName(filePath)}";
+                            PerformFileUploadWithRetry(filePath, remoteFilePath, account);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"Failed to upload file {Path.GetFileName(filePath)}: {ex.Message}");
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }));
+                }
+
+                // Wait for all file uploads to complete
+                Task.WaitAll(uploadTasks.ToArray());
+
+                // Process subdirectories sequentially
+                foreach (string subDir in Directory.GetDirectories(localPath))
+                {
+                    string newRemotePath = $"{remotePath.TrimEnd('/')}/{Path.GetFileName(subDir)}/";
+                    EnsureRemoteDirectoryExists(newRemotePath, account);
+                    UploadDirectoryContents(subDir, newRemotePath, account);
+                }
             }
+        }
+
+        private static void PerformFileUploadWithRetry(string localPath, string remoteUrl, FTP_Account account)
+        {
+            int attempt = 0;
+            while (attempt < MAX_RETRY_ATTEMPTS)
+            {
+                try
+                {
+                    PerformFileUpload(localPath, remoteUrl, account);
+                    return; // Success
+                }
+                catch (WebException ex) when (IsTransientError(ex))
+                {
+                    attempt++;
+                    if (attempt >= MAX_RETRY_ATTEMPTS)
+                    {
+                        LogError($"Max retries ({MAX_RETRY_ATTEMPTS}) reached for {Path.GetFileName(localPath)}");
+                        throw;
+                    }
+
+                    int delay = RETRY_DELAY_BASE_MS * attempt;
+                    LogWarning($"Retry {attempt}/{MAX_RETRY_ATTEMPTS} in {delay}ms for {Path.GetFileName(localPath)}");
+                    Thread.Sleep(delay);
+                }
+            }
+        }
+
+        private static bool IsTransientError(WebException ex)
+        {
+            if (ex.Response is FtpWebResponse response)
+            {
+                // Retry on these status codes
+                return response.StatusCode == FtpStatusCode.ServiceNotAvailable ||
+                       response.StatusCode == FtpStatusCode.ConnectionClosed ||
+                       response.StatusCode == FtpStatusCode.CantOpenData;
+            }
+            return false;
         }
 
         private static void PerformFileUpload(string localPath, string remoteUrl, FTP_Account account)
@@ -146,7 +204,6 @@ namespace FTP_Manager
                 fileStream.CopyTo(requestStream, BUFFER_SIZE);
             }
 
-            // Verify upload completed successfully
             using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
             {
                 if (response.StatusCode != FtpStatusCode.ClosingData)
@@ -158,17 +215,14 @@ namespace FTP_Manager
 
         private static void EnsureRemoteDirectoryExists(string directoryUrl, FTP_Account account)
         {
-            // Normalize the directory URL first
-            directoryUrl = directoryUrl.TrimEnd('/') + "/"; // Ensure trailing slash for directories
+            directoryUrl = directoryUrl.TrimEnd('/') + "/";
 
             if (CheckRemoteDirectoryExists(directoryUrl, account))
                 return;
 
-            // Get parent directory (one level up)
             string parentDirectory = GetParentDirectoryUri(directoryUrl);
             if (!string.IsNullOrEmpty(parentDirectory))
             {
-                // Recursively ensure parent exists
                 EnsureRemoteDirectoryExists(parentDirectory, account);
             }
 
@@ -193,14 +247,11 @@ namespace FTP_Manager
 
         private static bool CheckRemoteDirectoryExists(string directoryUrl, FTP_Account account)
         {
-            // For directory checking, we need to ensure the path ends with /
             directoryUrl = directoryUrl.TrimEnd('/') + "/";
 
             try
             {
                 FtpWebRequest request = CreateFtpRequest(directoryUrl, WebRequestMethods.Ftp.ListDirectory, account);
-                request.Method = WebRequestMethods.Ftp.ListDirectoryDetails; // More reliable for directory checking
-
                 using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
                 {
                     return true;
@@ -224,14 +275,14 @@ namespace FTP_Manager
             if (!File.Exists(DEFAULT_CONFIG_PATH))
                 throw new FileNotFoundException($"FTP account config not found at: {DEFAULT_CONFIG_PATH}");
 
-            string json = File.ReadAllText(DEFAULT_CONFIG_PATH);
-            FTP_Account account = JsonUtility.FromJson<FTP_Account>(json);
+                string json = File.ReadAllText(DEFAULT_CONFIG_PATH);
+                FTP_Account account = JsonUtility.FromJson<FTP_Account>(json);
 
-            if (account == null)
-                throw new InvalidDataException("Invalid FTP account configuration");
+                if (account == null)
+                    throw new InvalidDataException("Invalid FTP account configuration");
 
-            return account;
-        }
+                return account;
+            }
 
         private static FtpWebRequest CreateFtpRequest(string url, string method, FTP_Account account)
         {
@@ -242,10 +293,10 @@ namespace FTP_Manager
             request.Method = method;
             request.Credentials = new NetworkCredential(account.username, account.password);
             request.Timeout = TIMEOUT_MS;
-            request.UsePassive = true; // Better compatibility with firewalls
-            request.KeepAlive = false; // Prevent connection pooling issues
+            request.UsePassive = true;
             request.UseBinary = true;
-
+            request.KeepAlive = false;
+            request.ServicePoint.ConnectionLimit = MAX_CONCURRENT_CONNECTIONS;
             return request;
         }
 
@@ -265,7 +316,6 @@ namespace FTP_Manager
             var uri = new Uri(ftpUrl);
             string path = uri.AbsolutePath.TrimEnd('/');
 
-            // Handle root case
             if (string.IsNullOrEmpty(path) || path == "/")
                 return null;
 
@@ -289,6 +339,28 @@ namespace FTP_Manager
         private static void LogError(string message)
         {
             Debug.LogError($"[FTP Manager] ERROR: {message}");
+        }
+        #endregion
+
+        #region Additional Features
+        /// <summary>
+        /// Gets the current connection count (for debugging)
+        /// </summary>
+        public static void LogConnectionStats()
+        {
+            Debug.Log($"[FTP Connection Stats] Current connections: {ServicePointManager.DefaultConnectionLimit}");
+        }
+
+        /// <summary>
+        /// Configures the maximum concurrent connections
+        /// </summary>
+        public static void SetMaxConnections(int maxConnections)
+        {
+            if (maxConnections < 1 || maxConnections > 20)
+                throw new ArgumentOutOfRangeException("Connection limit should be between 1-20");
+
+            ServicePointManager.DefaultConnectionLimit = maxConnections;
+            Debug.Log($"Set maximum concurrent connections to: {maxConnections}");
         }
         #endregion
     }
