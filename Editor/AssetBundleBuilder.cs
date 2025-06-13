@@ -108,6 +108,14 @@ public class AssetBundleBuilder
 
         // local version.json
         string versionFilePath = "Assets/AssetBundles/" + (BuildProfile.GetActiveBuildProfile()?.name ?? "Default") + "/version.json";
+        string versionDirectory = Path.GetDirectoryName(versionFilePath);
+
+        // Ensure the directory exists
+        if (!Directory.Exists(versionDirectory))
+        {
+            Directory.CreateDirectory(versionDirectory);
+        }
+
         if (!File.Exists(versionFilePath))
         {
             File.Create(versionFilePath).Close();
