@@ -1,6 +1,6 @@
 {
   "name": "com.icewaternotice.build-helper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Build Helper",
   "description": "This is a build helper package",
   "unity": "2019.1",
@@ -11,9 +11,10 @@
   "dependencies": {
  },
  "keywords": [
-    "keyword1",
-    "keyword2",
-    "keyword3"
+    "build",
+    "helper",
+    "unity",
+    "package"
   ],
   "author": {
     "name": "icewaternotice",
