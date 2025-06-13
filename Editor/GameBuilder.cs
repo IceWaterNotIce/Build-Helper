@@ -33,7 +33,7 @@ public class GameBuilder : IPreprocessBuildWithReport
     public static void UploadToFTP()
     {
         // 從 editor/account.json 獲取帳戶信息
-        string accountFilePath = "Assets/Editor/Utils/FTPaccount.json";
+        string accountFilePath = "Assets/FTPaccount.json";
         if (!File.Exists(accountFilePath))
         {
             UnityEngine.Debug.LogError("FTP account file not found.");
