@@ -93,7 +93,7 @@ namespace FTP_Manager
 
             var account = GetAccountCredentials(host, username, password);
             string fullRemotePath = FormatFtpPath(account.host, remotePath);
-            string fileName = Path.GetFileName(filePath);
+            string fileName = Uri.EscapeDataString(Path.GetFileName(filePath));
             string uploadUrl = CombineFtpPaths(fullRemotePath, fileName);
 
             LogInfo($"Uploading file: {fileName}\nFrom: {filePath}\nTo: {uploadUrl}");
@@ -129,12 +129,12 @@ namespace FTP_Manager
                     {
                         try
                         {
-                            string remoteFilePath = $"{remotePath.TrimEnd('/')}/{Path.GetFileName(filePath)}";
+                            string remoteFilePath = $"{remotePath.TrimEnd('/')}/{Uri.EscapeDataString(Path.GetFileName(filePath))}";
                             PerformFileUploadWithRetry(filePath, remoteFilePath, account);
                         }
                         catch (Exception ex)
                         {
-                            LogError($"Failed to upload file {Path.GetFileName(filePath)}: {ex.Message}");
+                            LogError($"Failed to upload file {Uri.EscapeDataString(Path.GetFileName(filePath))}: {ex.Message}");
                         }
                         finally
                         {
@@ -149,7 +149,7 @@ namespace FTP_Manager
                 // Process subdirectories sequentially
                 foreach (string subDir in Directory.GetDirectories(localPath))
                 {
-                    string newRemotePath = $"{remotePath.TrimEnd('/')}/{Path.GetFileName(subDir)}/";
+                    string newRemotePath = $"{remotePath.TrimEnd('/')}/{Uri.EscapeDataString(Path.GetFileName(subDir))}/";
                     EnsureRemoteDirectoryExists(newRemotePath, account);
                     UploadDirectoryContents(subDir, newRemotePath, account);
                 }
@@ -302,7 +302,7 @@ namespace FTP_Manager
 
         private static string FormatFtpPath(string host, string path)
         {
-            path = path?.Trim('/') ?? string.Empty;
+            path = Uri.EscapeUriString(path?.Trim('/') ?? "");
             return $"{host.TrimEnd('/')}/{path}";
         }
 
