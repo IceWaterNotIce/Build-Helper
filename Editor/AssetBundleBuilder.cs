@@ -54,7 +54,7 @@ public class AssetBundleBuilder
         List<string> filted_assetBundles = new List<string>();
         foreach (string assetBundle in assetBundles)
         {
-            if (assetBundle.Contains(".all") || assetBundle.Contains(BuildProfile.GetActiveBuildProfile().name))
+            if (assetBundle.Contains(".all") || (activeProfile != null && assetBundle.Contains(activeProfile.name)))
             {
                 filted_assetBundles.Add(assetBundle);
             }
@@ -69,7 +69,7 @@ public class AssetBundleBuilder
 
         // build asset bundles
         BuildPipeline.BuildAssetBundles(
-            "Assets/AssetBundles/" + BuildProfile.GetActiveBuildProfile().name,
+            "Assets/AssetBundles/" + (activeProfile != null ? activeProfile.name : platformName),
             buildMap,
             BuildAssetBundleOptions.None,
             EditorUserBuildSettings.activeBuildTarget
@@ -107,7 +107,7 @@ public class AssetBundleBuilder
         string ftpUrl = account.host + "AssetBundles/";
 
         // local version.json
-        string versionFilePath = "Assets/AssetBundles/" + BuildProfile.GetActiveBuildProfile().name + "/version.json";
+        string versionFilePath = "Assets/AssetBundles/" + (BuildProfile.GetActiveBuildProfile()?.name ?? "Default") + "/version.json";
         if (!File.Exists(versionFilePath))
         {
             File.Create(versionFilePath).Close();
@@ -121,7 +121,7 @@ public class AssetBundleBuilder
         List<string> filted_assetBundles = new List<string>();
         foreach (string assetBundle in assetBundles)
         {
-            if (assetBundle.Contains(".all") || assetBundle.Contains(BuildProfile.GetActiveBuildProfile().name))
+            if (assetBundle.Contains(".all") || (BuildProfile.GetActiveBuildProfile() != null && assetBundle.Contains(BuildProfile.GetActiveBuildProfile().name)))
             {
                 filted_assetBundles.Add(assetBundle);
             }
@@ -140,7 +140,7 @@ public class AssetBundleBuilder
                 {
                     name = bundle,
                     version = "1.0",
-                    url = ftpUrl + BuildProfile.GetActiveBuildProfile().name + "/" + bundle
+                    url = ftpUrl + (BuildProfile.GetActiveBuildProfile()?.name ?? "Default") + "/" + bundle
                 });
             }
         }
