@@ -185,8 +185,22 @@ public class AssetBundleBuilder
     }
     private static void UploadToFTP()
     {
-        string localFolderPath = "Assets/AssetBundles/" + BuildProfile.GetActiveBuildProfile().name + "/";
-        string remoteFolderPath = "AssetBundles/" + BuildProfile.GetActiveBuildProfile().name + "/";
+        string platformName;
+        var activeProfile = BuildProfile.GetActiveBuildProfile();
+
+        if (activeProfile == null)
+        {
+            // Fallback to current active build target
+            platformName = EditorUserBuildSettings.activeBuildTarget.ToString();
+            UnityEngine.Debug.LogWarning("No active build profile found, using current build target: " + platformName);
+        }
+        else
+        {
+            platformName = activeProfile.name;
+        }
+
+        string localFolderPath = "Assets/AssetBundles/" + platformName + "/";
+        string remoteFolderPath = "AssetBundles/" + platformName + "/";
         FTP_Controller.UploadDirectory(localFolderPath, remoteFolderPath);
         UnityEngine.Debug.Log("Asset Bundles uploaded to FTP");
     }
