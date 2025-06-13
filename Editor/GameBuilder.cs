@@ -19,7 +19,20 @@ public class GameBuilder : IPreprocessBuildWithReport
     {
         SetPlatformVar();
         UpdateVersion();
-        CommitAndPushToGit(BuildProfile.GetActiveBuildProfile().name, PlayerSettings.bundleVersion);
+        string platformName;
+        var activeProfile = BuildProfile.GetActiveBuildProfile();
+
+        if (activeProfile == null)
+        {
+            // Fallback to current active build target
+            platformName = EditorUserBuildSettings.activeBuildTarget.ToString();
+            UnityEngine.Debug.LogWarning("No active build profile found, using current build target: " + platformName);
+        }
+        else
+        {
+            platformName = activeProfile.name;
+        }
+        CommitAndPushToGit(platformName, PlayerSettings.bundleVersion);
     }
 
     [PostProcessBuild]
@@ -42,8 +55,24 @@ public class GameBuilder : IPreprocessBuildWithReport
 
         string json = File.ReadAllText(accountFilePath);
         FTP_Account account = JsonUtility.FromJson<FTP_Account>(json) ?? new FTP_Account();
-        string localFolderPath = "Builds/" + BuildProfile.GetActiveBuildProfile().name + "/";
-        string ftpUrl = BuildProfile.GetActiveBuildProfile().name + "/";
+
+        string platformName;
+        var activeProfile = BuildProfile.GetActiveBuildProfile();
+
+        if (activeProfile == null)
+        {
+            // Fallback to current active build target
+            platformName = EditorUserBuildSettings.activeBuildTarget.ToString();
+            UnityEngine.Debug.LogWarning("No active build profile found, using current build target: " + platformName);
+        }
+        else
+        {
+            platformName = activeProfile.name;
+        }
+
+
+        string localFolderPath = "Builds/" + platformName + "/";
+        string ftpUrl = platformName + "/";
 
         if (!Directory.Exists(localFolderPath))
         {
@@ -64,13 +93,25 @@ public class GameBuilder : IPreprocessBuildWithReport
         }
     }
 
-    
+
     private void SetPlatformVar()
     {
         // load txt from resources
-        string platform = BuildProfile.GetActiveBuildProfile().name;
+        string platformName;
+        var activeProfile = BuildProfile.GetActiveBuildProfile();
+
+        if (activeProfile == null)
+        {
+            // Fallback to current active build target
+            platformName = EditorUserBuildSettings.activeBuildTarget.ToString();
+            UnityEngine.Debug.LogWarning("No active build profile found, using current build target: " + platformName);
+        }
+        else
+        {
+            platformName = activeProfile.name;
+        }
         string platformFilePath = Path.Combine(Application.dataPath, "Resources", "platform.txt");
-        File.WriteAllText(platformFilePath, platform);
+        File.WriteAllText(platformFilePath, platformName);
     }
 
     private static void UpdateVersion()

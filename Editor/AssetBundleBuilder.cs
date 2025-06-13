@@ -106,8 +106,22 @@ public class AssetBundleBuilder
         FTP_Account account = JsonUtility.FromJson<FTP_Account>(accountjson) ?? new FTP_Account();
         string ftpUrl = account.host + "AssetBundles/";
 
+ string platformName;
+        var activeProfile = BuildProfile.GetActiveBuildProfile();
+
+        if (activeProfile == null)
+        {
+            // Fallback to current active build target
+            platformName = EditorUserBuildSettings.activeBuildTarget.ToString();
+            UnityEngine.Debug.LogWarning("No active build profile found, using current build target: " + platformName);
+        }
+        else
+        {
+            platformName = activeProfile.name;
+        }
+
         // local version.json
-        string versionFilePath = "Assets/AssetBundles/" + (BuildProfile.GetActiveBuildProfile()?.name ?? "Default") + "/version.json";
+        string versionFilePath = "Assets/AssetBundles/" + platformName + "/version.json";
         string versionDirectory = Path.GetDirectoryName(versionFilePath);
 
         // Ensure the directory exists
@@ -129,7 +143,7 @@ public class AssetBundleBuilder
         List<string> filted_assetBundles = new List<string>();
         foreach (string assetBundle in assetBundles)
         {
-            if (assetBundle.Contains(".all") || (BuildProfile.GetActiveBuildProfile() != null && assetBundle.Contains(BuildProfile.GetActiveBuildProfile().name)))
+            if (assetBundle.Contains(".all") || (BuildProfile.GetActiveBuildProfile() != null && assetBundle.Contains(platformName)))
             {
                 filted_assetBundles.Add(assetBundle);
             }
@@ -148,7 +162,7 @@ public class AssetBundleBuilder
                 {
                     name = bundle,
                     version = "1.0",
-                    url = ftpUrl + (BuildProfile.GetActiveBuildProfile()?.name ?? "Default") + "/" + bundle
+                    url = ftpUrl + platformName + "/" + bundle
                 });
             }
         }
