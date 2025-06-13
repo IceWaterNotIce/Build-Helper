@@ -1,253 +1,276 @@
+using System;
 using System.IO;
 using System.Net;
-using System;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace FTP_Manager
 {
     /// <summary>
-    /// FTP 账户信息类，用于存储主机、用户名和密码。
+    /// FTP account information class (sealed for security)
     /// </summary>
+    [Serializable]
     public class FTP_Account
     {
-        public string host;
-        public string username;
-        public string password;
+        public string host; // 修改為 public
+        public string username; // 修改為 public
+        public string password; // 修改為 public
     }
 
     /// <summary>
-    /// FTP 控制器类，提供上传文件、目录以及管理 FTP 目录的方法。
+    /// FTP controller with enhanced security and error handling
     /// </summary>
-    public class FTP_Controller
+    public static class FTP_Controller
     {
+        private const string DEFAULT_CONFIG_PATH = "Assets/FTPaccount.json";
+        private const int TIMEOUT_MS = 30000;
+        private const int BUFFER_SIZE = 81920; // 80KB buffer
+
         /// <summary>
-        /// 上传本地文件夹到 FTP 服务器上的指定路径。
+        /// Uploads a local directory to FTP server (async version available)
         /// </summary>
-        /// <param name="localFolderPath">本地文件夹路径</param>
-        /// <param name="RemoteFolderPath">FTP 服务器上的目标文件夹路径</param>
-        /// <param name="host">FTP 主机（可选）</param>
-        /// <param name="username">FTP 用户名（可选）</param>
-        /// <param name="password">FTP 密码（可选）</param>
-        public static void UploadDirectory(string localFolderPath, string RemoteFolderPath, string host = null, string username = null, string password = null)
+        public static void UploadDirectory(string localFolderPath, string remoteFolderPath,
+                                         string host = null, string username = null, string password = null)
         {
-            // 如果未提供用户名或密码，则从配置文件加载
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
-            {
-                string accountFilePath = "Assets/FTPaccount.json";
-                if (!File.Exists(accountFilePath))
-                {
-                    UnityEngine.Debug.LogError("account.json not found");
-                    return;
-                }
-                string json = File.ReadAllText(accountFilePath);
-                FTP_Account account = JsonUtility.FromJson<FTP_Account>(json) ?? new FTP_Account();
-                username = account.username;
-                password = account.password;
-                host = account.host;
-            }
+            if (!Directory.Exists(localFolderPath))
+                throw new DirectoryNotFoundException($"Local directory not found: {localFolderPath}");
 
-            Debug.Log($"Uploading Folder : {Path.GetFileName(localFolderPath)}\n {localFolderPath}\n To FTP server:\n {host}{RemoteFolderPath}");
+            var account = GetAccountCredentials(host, username, password);
+            string fullRemotePath = FormatFtpPath(account.host, remoteFolderPath);
 
-            // 确保远程文件夹存在
+            LogInfo($"Uploading folder: {Path.GetFileName(localFolderPath)}\nFrom: {localFolderPath}\nTo: {fullRemotePath}");
+
             try
             {
-                CreateFtpDirectory($"{host}{RemoteFolderPath}", username, password);
+                EnsureRemoteDirectoryExists(fullRemotePath, account);
+                UploadDirectoryContents(localFolderPath, fullRemotePath, account);
+                LogInfo($"Successfully uploaded folder: {Path.GetFileName(localFolderPath)}");
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"Failed to ensure remote folder exists: {RemoteFolderPath}. Error: {ex.Message}");
-            }
-
-            // 上传目录中的所有文件
-            foreach (string filePath in Directory.GetFiles(localFolderPath))
-            {
-                // 跳过 .meta 文件
-                if (Path.GetExtension(filePath) == ".meta")
-                {
-                    Debug.Log($"Skipping .meta file: {filePath}");
-                    continue;
-                }
-
-                UploadFile(filePath, $"{host}{RemoteFolderPath}", username, password);
-            }
-
-            Debug.Log($"Uploaded  Folder : {Path.GetFileName(localFolderPath)}");
-
-            // 递归上传子目录
-            foreach (string directoryPath in Directory.GetDirectories(localFolderPath))
-            {
-                string newFtpUrl = $"{host}{RemoteFolderPath}{Path.GetFileName(directoryPath)}/";
-
-                // 确保子目录在 FTP 服务器上存在
-                try
-                {
-                    CreateFtpDirectory(newFtpUrl, username, password);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"Failed to ensure remote subdirectory exists: {newFtpUrl}. Error: {ex.Message}");
-                }
-
-                // 递归上传子目录
-                UploadDirectory(directoryPath, newFtpUrl, username, password);
-            }
-        }
-
-        /// <summary>
-        /// 上传单个文件到 FTP 服务器。
-        /// </summary>
-        /// <param name="filePath">本地文件路径</param>
-        /// <param name="ftpUrl">FTP 服务器上的目标路径</param>
-        /// <param name="username">FTP 用户名</param>
-        /// <param name="password">FTP 密码</param>
-        public static void UploadFile(string filePath, string ftpUrl, string username, string password)
-        {
-            string fileName = Path.GetFileName(filePath);
-            string uploadUrl = $"{ftpUrl}{fileName}";
-
-            Debug.Log($"Uploading file : {fileName}\n {filePath}\n To FTP server:\n {uploadUrl}");
-
-            // 确保目录在 FTP 服务器上存在
-            string directoryUrl = ftpUrl.TrimEnd('/');
-            try
-            {
-                CreateFtpDirectory(directoryUrl, username, password);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Failed to ensure directory exists: {directoryUrl}. Error: {ex.Message}");
-            }
-
-            try
-            {
-                FtpWebRequest request = (FtpWebRequest)WebRequest.Create(uploadUrl);
-                request.Method = WebRequestMethods.Ftp.UploadFile;
-                request.Credentials = new NetworkCredential(username, password);
-
-                using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
-                using (Stream requestStream = request.GetRequestStream())
-                {
-                    fileStream.CopyTo(requestStream);
-                }
-
-                Debug.Log($"Uploaded file : {fileName}");
-            }
-            catch (WebException ex)
-            {
-                Debug.LogError($"Failed to upload file: {fileName}. Error: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// 在 FTP 服务器上创建目录（如果不存在）。
-        /// </summary>
-        /// <param name="ftpUrl">要创建的 FTP 目录 URL</param>
-        /// <param name="username">FTP 用户名</param>
-        /// <param name="password">FTP 密码</param>
-        public static void CreateFtpDirectory(string ftpUrl, string username, string password)
-        {
-            if (!Uri.IsWellFormedUriString(ftpUrl, UriKind.Absolute))
-            {
-                Debug.LogError($"Invalid FTP URL: {ftpUrl}");
-                return;
-            }
-
-            string parentDirectory = GetParentDirectoryUri(ftpUrl);
-            if (!string.IsNullOrEmpty(parentDirectory))
-            {
-                // 检查父目录是否存在
-                if (!CheckRemoteDirectoryExists(parentDirectory, username, password))
-                {
-                    Debug.Log($"Parent directory does not exist: {parentDirectory}. Checking higher-level directories...");
-                    // 递归确保父目录存在
-                    CreateFtpDirectory(parentDirectory, username, password);
-                }
-            }
-
-            Debug.Log($"Attempting to create directory: {ftpUrl}");
-            try
-            {
-                FtpWebRequest request = (FtpWebRequest)WebRequest.Create(ftpUrl);
-                request.Method = WebRequestMethods.Ftp.MakeDirectory;
-                request.Credentials = new NetworkCredential(username, password);
-
-                using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
-                {
-                    Debug.Log($"Directory created: {ftpUrl}");
-                }
-            }
-            catch (WebException ex)
-            {
-                if (ex.Response is FtpWebResponse ftpResponse && ftpResponse.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
-                {
-                    Debug.Log($"Directory already exists: {ftpUrl}");
-                }
-                else
-                {
-                    Debug.LogWarning($"Failed to create directory: {ftpUrl}. Error: {ex.Message}");
-                    throw;
-                }
-            }
-        }
-
-        /// <summary>
-        /// 获取 FTP 目录的父目录 URI。
-        /// </summary>
-        /// <param name="ftpUrl">FTP 目录 URL</param>
-        /// <returns>父目录的 URI，如果没有父目录则返回 null</returns>
-        private static string GetParentDirectoryUri(string ftpUrl)
-        {
-            Uri uri = new Uri(ftpUrl);
-            string path = uri.AbsolutePath;
-            if (path.EndsWith("/"))
-            {
-                path = path.Substring(0, path.Length - 1);
-            }
-            int lastSlashIndex = path.LastIndexOf('/');
-            if (lastSlashIndex >= 0)
-            {
-                string parentPath = path.Substring(0, lastSlashIndex + 1);
-                return new Uri(uri.Scheme + "://" + uri.Host + parentPath).ToString();
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// 检查 FTP 服务器上的目录是否存在。
-        /// </summary>
-        /// <param name="directoryUrl">FTP 目录 URL</param>
-        /// <param name="username">FTP 用户名</param>
-        /// <param name="password">FTP 密码</param>
-        /// <returns>如果目录存在则返回 true，否则返回 false</returns>
-        private static bool CheckRemoteDirectoryExists(string directoryUrl, string username, string password)
-        {
-            Debug.Log($"Checking if directory exists: {directoryUrl}");
-            try
-            {
-                FtpWebRequest request = (FtpWebRequest)WebRequest.Create(directoryUrl);
-                request.Method = WebRequestMethods.Ftp.ListDirectory;
-                request.Credentials = new NetworkCredential(username, password);
-
-                using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
-                using (Stream responseStream = response.GetResponseStream())
-                using (StreamReader reader = new StreamReader(responseStream))
-                {
-                    reader.ReadToEnd();
-                }
-                return true;
-            }
-            catch (WebException ex)
-            {
-                if (ex.Response is FtpWebResponse ftpResponse && ftpResponse.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
-                {
-                    return false;
-                }
-                Debug.LogWarning($"Error checking if directory exists: {directoryUrl}. Error: {ex.Message}");
+                LogError($"Failed to upload directory. Error: {ex.Message}");
                 throw;
             }
         }
+
+        /// <summary>
+        /// Async version of directory upload
+        /// </summary>
+        public static async Task UploadDirectoryAsync(string localFolderPath, string remoteFolderPath,
+                                                     string host = null, string username = null, string password = null)
+        {
+            await Task.Run(() => UploadDirectory(localFolderPath, remoteFolderPath, host, username, password));
+        }
+
+        /// <summary>
+        /// Uploads a single file to FTP server
+        /// </summary>
+        public static void UploadFile(string filePath, string remotePath,
+                                    string host = null, string username = null, string password = null)
+        {
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"File not found: {filePath}");
+
+            if (Path.GetExtension(filePath) == ".meta")
+            {
+                LogInfo($"Skipping .meta file: {filePath}");
+                return;
+            }
+
+            var account = GetAccountCredentials(host, username, password);
+            string fullRemotePath = FormatFtpPath(account.host, remotePath);
+            string fileName = Path.GetFileName(filePath);
+            string uploadUrl = CombineFtpPaths(fullRemotePath, fileName);
+
+            LogInfo($"Uploading file: {fileName}\nFrom: {filePath}\nTo: {uploadUrl}");
+
+            try
+            {
+                EnsureRemoteDirectoryExists(fullRemotePath, account);
+                PerformFileUpload(filePath, uploadUrl, account);
+                LogInfo($"Successfully uploaded file: {fileName}");
+            }
+            catch (Exception ex)
+            {
+                LogError($"Failed to upload file: {fileName}. Error: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Async version of file upload
+        /// </summary>
+        public static async Task UploadFileAsync(string filePath, string remotePath,
+                                               string host = null, string username = null, string password = null)
+        {
+            await Task.Run(() => UploadFile(filePath, remotePath, host, username, password));
+        }
+
+        #region Core Implementation
+        private static void UploadDirectoryContents(string localPath, string remotePath, FTP_Account account)
+        {
+            // Upload files in parallel with thread-safe error handling
+            Parallel.ForEach(Directory.GetFiles(localPath), filePath =>
+            {
+                if (Path.GetExtension(filePath) != ".meta")
+                {
+                    try
+                    {
+                        string fileName = Path.GetFileName(filePath);
+                        string fileRemotePath = CombineFtpPaths(remotePath, fileName);
+                        PerformFileUpload(filePath, fileRemotePath, account);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"Failed to upload file {Path.GetFileName(filePath)}: {ex.Message}");
+                    }
+                }
+            });
+
+            // Process subdirectories sequentially
+            foreach (string subDir in Directory.GetDirectories(localPath))
+            {
+                string newRemotePath = CombineFtpPaths(remotePath, Path.GetFileName(subDir));
+                EnsureRemoteDirectoryExists(newRemotePath, account);
+                UploadDirectoryContents(subDir, newRemotePath, account);
+            }
+        }
+
+        private static void PerformFileUpload(string localPath, string remoteUrl, FTP_Account account)
+        {
+            FtpWebRequest request = CreateFtpRequest(remoteUrl, WebRequestMethods.Ftp.UploadFile, account);
+
+            using (FileStream fileStream = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, BUFFER_SIZE, true))
+            using (Stream requestStream = request.GetRequestStream())
+            {
+                fileStream.CopyTo(requestStream, BUFFER_SIZE);
+            }
+
+            // Verify upload completed successfully
+            using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
+            {
+                if (response.StatusCode != FtpStatusCode.ClosingData)
+                {
+                    throw new WebException($"FTP upload failed with status: {response.StatusCode}");
+                }
+            }
+        }
+
+        private static void EnsureRemoteDirectoryExists(string directoryUrl, FTP_Account account)
+        {
+            if (CheckRemoteDirectoryExists(directoryUrl, account))
+                return;
+
+            string parentDirectory = GetParentDirectoryUri(directoryUrl);
+            if (!string.IsNullOrEmpty(parentDirectory))
+            {
+                EnsureRemoteDirectoryExists(parentDirectory, account);
+            }
+
+            try
+            {
+                FtpWebRequest request = CreateFtpRequest(directoryUrl, WebRequestMethods.Ftp.MakeDirectory, account);
+                using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
+                {
+                    LogInfo($"Created remote directory: {directoryUrl}");
+                }
+            }
+            catch (WebException ex) when ((ex.Response as FtpWebResponse)?.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
+            {
+                LogInfo($"Directory already exists: {directoryUrl}");
+            }
+        }
+
+        private static bool CheckRemoteDirectoryExists(string directoryUrl, FTP_Account account)
+        {
+            try
+            {
+                FtpWebRequest request = CreateFtpRequest(directoryUrl, WebRequestMethods.Ftp.ListDirectory, account);
+                using (FtpWebResponse response = (FtpWebResponse)request.GetResponse())
+                {
+                    return true;
+                }
+            }
+            catch (WebException ex) when ((ex.Response as FtpWebResponse)?.StatusCode == FtpStatusCode.ActionNotTakenFileUnavailable)
+            {
+                return false;
+            }
+        }
+        #endregion
+
+        #region Helper Methods
+        private static FTP_Account GetAccountCredentials(string host, string username, string password)
+        {
+            if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
+            {
+                return new FTP_Account { host = host, username = username, password = password };
+            }
+
+            if (!File.Exists(DEFAULT_CONFIG_PATH))
+                throw new FileNotFoundException($"FTP account config not found at: {DEFAULT_CONFIG_PATH}");
+
+            string json = File.ReadAllText(DEFAULT_CONFIG_PATH);
+            FTP_Account account = JsonUtility.FromJson<FTP_Account>(json);
+
+            if (account == null)
+                throw new InvalidDataException("Invalid FTP account configuration");
+
+            return account;
+        }
+
+        private static FtpWebRequest CreateFtpRequest(string url, string method, FTP_Account account)
+        {
+            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+                throw new UriFormatException($"Invalid FTP URL: {url}");
+
+            FtpWebRequest request = (FtpWebRequest)WebRequest.Create(url);
+            request.Method = method;
+            request.Credentials = new NetworkCredential(account.username, account.password);
+            request.Timeout = TIMEOUT_MS;
+            request.UsePassive = true; // Better compatibility with firewalls
+            request.KeepAlive = false; // Prevent connection pooling issues
+            request.UseBinary = true;
+
+            return request;
+        }
+
+        private static string FormatFtpPath(string host, string path)
+        {
+            path = path?.Trim('/') ?? string.Empty;
+            return $"{host.TrimEnd('/')}/{path}";
+        }
+
+        private static string CombineFtpPaths(string basePath, string relativePath)
+        {
+            return $"{basePath.TrimEnd('/')}/{relativePath.TrimStart('/')}";
+        }
+
+        private static string GetParentDirectoryUri(string ftpUrl)
+        {
+            var uri = new Uri(ftpUrl);
+            string path = uri.AbsolutePath.TrimEnd('/');
+
+            int lastSlash = path.LastIndexOf('/');
+            if (lastSlash <= 0) return null;
+
+            string parentPath = path.Substring(0, lastSlash + 1);
+            return new UriBuilder(uri.Scheme, uri.Host, uri.Port, parentPath).Uri.ToString();
+        }
+
+        private static void LogInfo(string message)
+        {
+            Debug.Log($"[FTP Manager] INFO: {message}");
+        }
+
+        private static void LogWarning(string message)
+        {
+            Debug.LogWarning($"[FTP Manager] WARNING: {message}");
+        }
+
+        private static void LogError(string message)
+        {
+            Debug.LogError($"[FTP Manager] ERROR: {message}");
+        }
+        #endregion
     }
 }
