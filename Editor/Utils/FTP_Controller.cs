@@ -38,6 +38,13 @@ namespace FTP_Manager
             // Upload all files in the directory
             foreach (string filePath in Directory.GetFiles(localFolderPath))
             {
+                // Skip .meta files
+                if (Path.GetExtension(filePath) == ".meta")
+                {
+                    Debug.Log($"Skipping .meta file: {filePath}");
+                    continue;
+                }
+
                 UploadFile(filePath, $"{host}{RemoteFolderPath}", username, password);
             }
 
