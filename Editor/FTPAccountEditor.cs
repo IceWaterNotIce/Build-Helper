@@ -41,6 +41,9 @@ namespace FTP_Manager
             {
                 LoadAccount();
             }
+
+            GUILayout.Space(10);
+            EditorGUILayout.HelpBox("Reminder: Ensure your FTP settings are correct and verified in your FTP GUI tool.", MessageType.Info);
         }
 
         private void SaveAccount()
