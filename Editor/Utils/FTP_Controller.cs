@@ -67,17 +67,24 @@ namespace FTP_Manager
             string directoryUrl = ftpUrl.TrimEnd('/');
             CreateFtpDirectory(directoryUrl, username, password);
 
-            FtpWebRequest request = (FtpWebRequest)WebRequest.Create(uploadUrl);
-            request.Method = WebRequestMethods.Ftp.UploadFile;
-            request.Credentials = new NetworkCredential(username, password);
-
-            using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
-            using (Stream requestStream = request.GetRequestStream())
+            try
             {
-                fileStream.CopyTo(requestStream);
-            }
+                FtpWebRequest request = (FtpWebRequest)WebRequest.Create(uploadUrl);
+                request.Method = WebRequestMethods.Ftp.UploadFile;
+                request.Credentials = new NetworkCredential(username, password);
 
-            Debug.Log($"Uploaded  file : {fileName}");
+                using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                using (Stream requestStream = request.GetRequestStream())
+                {
+                    fileStream.CopyTo(requestStream);
+                }
+
+                Debug.Log($"Uploaded file : {fileName}");
+            }
+            catch (WebException ex)
+            {
+                Debug.LogError($"Failed to upload file: {fileName}. Error: {ex.Message}");
+            }
         }
 
         public static void CreateFtpDirectory(string ftpUrl, string username, string password)
