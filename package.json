@@ -1,0 +1,24 @@
+{
+  "name": "com.icewaternotice.build-helper",
+  "version": "1.0.0",
+  "displayName": "Build Helper",
+  "description": "This is a build helper package",
+  "unity": "2019.1",
+  "unityRelease": "0b5",
+  "documentationUrl": "https://example.com/",
+  "changelogUrl": "https://example.com/changelog.html",
+  "licensesUrl": "https://example.com/licensing.html",
+  "dependencies": {
+ },
+ "keywords": [
+    "keyword1",
+    "keyword2",
+    "keyword3"
+  ],
+  "author": {
+    "name": "icewaternotice",
+    "email": "icewaternotice@gmail.com",
+    "url": "https://www.icewaternotice.com"
+  }
+}
+
