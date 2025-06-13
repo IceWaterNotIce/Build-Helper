@@ -35,6 +35,16 @@ namespace FTP_Manager
 
             Debug.Log($"Uploading Folder : {Path.GetFileName(localFolderPath)}\n {localFolderPath}\n To FTP server:\n {host}{RemoteFolderPath}");
 
+            // Ensure the remote folder exists
+            try
+            {
+                CreateFtpDirectory($"{host}{RemoteFolderPath}", username, password);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to ensure remote folder exists: {RemoteFolderPath}. Error: {ex.Message}");
+            }
+
             // Upload all files in the directory
             foreach (string filePath in Directory.GetFiles(localFolderPath))
             {
@@ -55,8 +65,15 @@ namespace FTP_Manager
             {
                 string newFtpUrl = $"{host}{RemoteFolderPath}{Path.GetFileName(directoryPath)}/";
 
-                // Create directory on FTP server
-                CreateFtpDirectory(newFtpUrl, username, password);
+                // Ensure the subdirectory exists on FTP server
+                try
+                {
+                    CreateFtpDirectory(newFtpUrl, username, password);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"Failed to ensure remote subdirectory exists: {newFtpUrl}. Error: {ex.Message}");
+                }
 
                 // Recursively upload the subdirectory
                 UploadDirectory(directoryPath, newFtpUrl, username, password);
