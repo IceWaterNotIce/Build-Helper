@@ -98,7 +98,7 @@ public class AssetBundleBuilder
         string accountFilePath = "Assets/Editor/Utils/FTPaccount.json";
         if (!File.Exists(accountFilePath))
         {
-            UnityEngine.Debug.LogError("FTP account file not found.");
+            UnityEngine.Debug.LogError($"FTP account file not found at {accountFilePath}. Please ensure the file exists and contains valid FTP account information.");
             return;
         }
 
