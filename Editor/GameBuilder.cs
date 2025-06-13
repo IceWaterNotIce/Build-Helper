@@ -41,21 +41,9 @@ public class GameBuilder : IPreprocessBuildWithReport
         UnityEngine.Debug.Log("Build completed");
     }
 
-
     [MenuItem("FTP/Upload to FTP")]
     public static void UploadToFTP()
     {
-        // 從 editor/account.json 獲取帳戶信息
-        string accountFilePath = "Assets/FTPaccount.json";
-        if (!File.Exists(accountFilePath))
-        {
-            UnityEngine.Debug.LogError("FTP account file not found.");
-            return;
-        }
-
-        string json = File.ReadAllText(accountFilePath);
-        FTP_Account account = JsonUtility.FromJson<FTP_Account>(json) ?? new FTP_Account();
-
         string platformName;
         var activeProfile = BuildProfile.GetActiveBuildProfile();
 
@@ -70,33 +58,22 @@ public class GameBuilder : IPreprocessBuildWithReport
             platformName = activeProfile.name;
         }
 
-
         string localFolderPath = "Builds/" + platformName + "/";
-        string ftpUrl = platformName + "/";
+        string remoteFolderPath = "Builds/" + platformName + "/";
 
         if (!Directory.Exists(localFolderPath))
         {
-            UnityEngine.Debug.Log("Game build folder does not exist.");
+            UnityEngine.Debug.LogError($"Builds folder does not exist: {localFolderPath}");
             return;
         }
 
-        // 開始遞歸上傳文件和文件夾
-        try
-        {
-            UnityEngine.Debug.Log("ftpurl: " + ftpUrl);
-            FTP_Controller.UploadDirectory(localFolderPath, ftpUrl, account.username, account.password);
-            UnityEngine.Debug.Log("Game files uploaded to FTP");
-        }
-        catch (Exception ex)
-        {
-            UnityEngine.Debug.Log($"Error: {ex.Message}");
-        }
+        FTP_Controller.UploadDirectory(localFolderPath, remoteFolderPath);
+        UnityEngine.Debug.Log("Builds uploaded to FTP.");
     }
-
 
     private void SetPlatformVar()
     {
-        // load txt from resources
+        // Load txt from resources
         string platformName;
         var activeProfile = BuildProfile.GetActiveBuildProfile();
 
@@ -151,8 +128,6 @@ public class GameBuilder : IPreprocessBuildWithReport
                     break;
                 }
             }
-
-
         }
 
         string[] versionParts = PlayerSettings.bundleVersion.Split('.');
@@ -200,8 +175,6 @@ public class GameBuilder : IPreprocessBuildWithReport
             UnityEngine.Debug.Log(process.StandardOutput.ReadToEnd());
         }
     }
-
-
 
     [System.Serializable]
     public class VersionConfig

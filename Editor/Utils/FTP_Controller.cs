@@ -146,6 +146,12 @@ namespace FTP_Manager
         /// <param name="password">FTP 密码</param>
         public static void CreateFtpDirectory(string ftpUrl, string username, string password)
         {
+            if (!Uri.IsWellFormedUriString(ftpUrl, UriKind.Absolute))
+            {
+                Debug.LogError($"Invalid FTP URL: {ftpUrl}");
+                return;
+            }
+
             string parentDirectory = GetParentDirectoryUri(ftpUrl);
             if (!string.IsNullOrEmpty(parentDirectory))
             {
