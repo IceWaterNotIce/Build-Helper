@@ -63,6 +63,10 @@ namespace FTP_Manager
 
             Debug.Log($"Uploading file : {fileName}\n {filePath}\n To FTP server:\n {uploadUrl}");
 
+            // Ensure the directory exists on the FTP server
+            string directoryUrl = ftpUrl.TrimEnd('/');
+            CreateFtpDirectory(directoryUrl, username, password);
+
             FtpWebRequest request = (FtpWebRequest)WebRequest.Create(uploadUrl);
             request.Method = WebRequestMethods.Ftp.UploadFile;
             request.Credentials = new NetworkCredential(username, password);
