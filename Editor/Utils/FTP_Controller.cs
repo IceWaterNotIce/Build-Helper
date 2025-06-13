@@ -20,7 +20,7 @@ namespace FTP_Manager
         {
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
             {
-                string accountFilePath = "Assets/Editor/Utils/FTPaccount.json";
+                string accountFilePath = "Assets/FTPaccount.json";
                 if (!File.Exists(accountFilePath))
                 {
                     UnityEngine.Debug.LogError("account.json not found");
