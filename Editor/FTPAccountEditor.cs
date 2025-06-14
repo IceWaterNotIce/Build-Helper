@@ -2,7 +2,9 @@ using UnityEditor;
 using UnityEngine;
 using System.IO;
 
-namespace FTP_Manager
+
+
+namespace BuildHelper
 {
     public class FTPAccountEditor : EditorWindow
     {

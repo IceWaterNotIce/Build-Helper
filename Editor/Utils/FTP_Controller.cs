@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace FTP_Manager
+namespace BuildHelper
 {
     /// <summary>
     /// FTP account information class
@@ -275,14 +275,14 @@ namespace FTP_Manager
             if (!File.Exists(DEFAULT_CONFIG_PATH))
                 throw new FileNotFoundException($"FTP account config not found at: {DEFAULT_CONFIG_PATH}");
 
-                string json = File.ReadAllText(DEFAULT_CONFIG_PATH);
-                FTP_Account account = JsonUtility.FromJson<FTP_Account>(json);
+            string json = File.ReadAllText(DEFAULT_CONFIG_PATH);
+            FTP_Account account = JsonUtility.FromJson<FTP_Account>(json);
 
-                if (account == null)
-                    throw new InvalidDataException("Invalid FTP account configuration");
+            if (account == null)
+                throw new InvalidDataException("Invalid FTP account configuration");
 
-                return account;
-            }
+            return account;
+        }
 
         private static FtpWebRequest CreateFtpRequest(string url, string method, FTP_Account account)
         {
