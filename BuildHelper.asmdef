@@ -1,0 +1,4 @@
+{
+	"name": "BuildHelper",
+	"references": ["UnityEditor", "UnityEngine"]
+}

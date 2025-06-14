@@ -15,6 +15,7 @@ using FTP_Manager;
 public class GameBuilder : IPreprocessBuildWithReport
 {
     public int callbackOrder => 0;
+
     public void OnPreprocessBuild(BuildReport report)
     {
         SetPlatformVar();
