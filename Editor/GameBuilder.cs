@@ -87,6 +87,7 @@ public class GameBuilder : IPreprocessBuildWithReport
         {
             platformName = activeProfile.name;
         }
+        
         string platformFilePath = Path.Combine(Application.dataPath, "Resources", "platform.txt");
         File.WriteAllText(platformFilePath, platformName);
     }
