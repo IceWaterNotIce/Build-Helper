@@ -2,7 +2,7 @@
   "name": "com.icewaternotice.build-helper",
   "version": "1.1.0",
   "displayName": "Build Helper",
-  "description": "This is a build helper package",
+  "description": "This is a build helper package.",
   "unity": "2019.1",
   "unityRelease": "0b5",
   "documentationUrl": "https://example.com/",
