@@ -41,7 +41,7 @@ public class GameBuilder : IPreprocessBuildWithReport
         UnityEngine.Debug.Log("Build completed");
     }
 
-    [MenuItem("FTP/Upload to FTP")]
+    [MenuItem("FTP/Upload Build to FTP")]
     public static void UploadToFTP()
     {
         string platformName;
